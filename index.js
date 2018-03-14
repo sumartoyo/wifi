@@ -59,26 +59,54 @@ const connect = (argv) => {
     }
 
     const ssid = argv[1];
-    const file = `/etc/NetworkManager/system-connections/${ssid}`;
-    const args = ['dev', 'wifi', 'connect'].concat(argv.slice(1));
 
-    if (argv[2] !== 'password' && fs.existsSync(file)) {
-      if (!process.env.SUDO_UID) {
-        console.log('must sudo');
-        process.exit(1);
-      }
+    Promise.resolve()
+      .then(_ => new Promise((resolve, reject) => {
+        let uuid = null;
+        let isHeader = true;
+        let posUuid = null;
+        let refSsid = null;
 
-      const config = ini.parse(fs.readFileSync(file, 'utf-8'));
-      let security, password;
-      if (security = config['wifi-security']) {
-        if (password = security['psk']) {
-          args.push('password');
-          args.push(password);
+        spawn('nmcli', ['con', 'show'], {
+          onOut: data => {
+            const lines = data.toString().split('\n');
+            for (let i = 0; i < lines.length-1; i++) {
+              if (isHeader) {
+                posUuid = lines[i].indexOf('UUID');
+                refSsid = ssid;
+                while (refSsid.length < posUuid) {
+                  refSsid += ' ';
+                }
+                isHeader = false;
+              } else {
+                const line = lines[i];
+                if (line.startsWith(refSsid)) {
+                  uuid = line.slice(posUuid).split(' ').shift();
+                  break;
+                }
+              }
+            }
+          },
+
+          onClose: status => {
+            if (status !== 0) {
+              process.exit(status);
+            } else {
+              resolve(uuid);
+            }
+          },
+        });
+      }))
+      .then(uuid => {
+        let args;
+        if (uuid) {
+          args = ['con', 'up', 'uuid', uuid];
+        } else {
+          args = ['dev', 'wifi', 'connect', ssid];
         }
-      }
-    }
+        spawn('nmcli', args);
+      })
 
-    spawn('nmcli', args);
     return true;
   }
 }
@@ -94,7 +122,7 @@ const main = () => {
   console.log(`  wifi`);
   console.log(`  wifi list`);
   console.log(`  wifi disco`);
-  console.log(`  wifi conn [<ssid> [password <password>]]`);
+  console.log(`  wifi conn <ssid>`);
   process.exit(1);
 }
 

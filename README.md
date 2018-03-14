@@ -14,4 +14,4 @@ Linux's Network Manager's nmcli frontend to control wifi connections
 - `wifi` show currently active connection
 - `wifi list` show available connections
 - `wifi disco` disconnect
-- `wifi conn [<ssid> [password <password>]]` connect to AP
+- `wifi conn <ssid>` connect to AP
